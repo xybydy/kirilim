@@ -2,11 +2,13 @@ from sqlalchemy import Column, Integer, String, Unicode, Boolean, create_engine,
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+from globi import DB_NAME
+
 __all__ = ['Hesaplar', 'Lead', 'session', 'tanimlar']
 
 Base = declarative_base()
 
-db_name = ':memory:'
+
 tanimlar = {'company': 'Fatih Ka.'}
 periods = dict(cy='31.12.2015', py1='31.12.2013', py2='31.12.2014')
 
@@ -35,7 +37,7 @@ class Lead(Base):
     account = Column(String, nullable=True)
 
 
-engine = create_engine("sqlite:///%s" % db_name, echo=False)
+engine = create_engine("sqlite:///%s" % DB_NAME, echo=False)
 
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)

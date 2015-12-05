@@ -1,9 +1,16 @@
+import logging
 import os
+import sys
 
 import xlsxwriter
 from sqlalchemy import desc, asc
 
 import db
+import globi
+
+LOG_FILENAME = 'example.log'
+logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG, stream=sys.stdout)
+
 
 NUM_FORMAT = '_(* #,##0_);_(* (#,##0);_(* "-"_);_(@_)'
 PERC_FORMAT = '0%'
@@ -14,16 +21,26 @@ BLUE = '#0000D4'
 TBS_PEMBE = '#FDE9D9'
 PL_HESAPLAR = ['UA', 'UB', 'X', 'VA', 'VC', 'VE']
 
-directory = os.path.abspath(".")
+directory = os.getcwdu()
 cikti_folder = os.path.join(directory, "cikti")
+
+DEBUG = globi.DEBUG
 
 
 def create_workbook(isim):
+    if DEBUG:
+        print '#DEBUG: Workbook olusturuluyor.'
+        logging.debug('#DEBUG: Workbook olusturuluyor.')
+
     global workbook
     workbook = xlsxwriter.Workbook(os.path.join(cikti_folder, '{}.xlsx'.format(isim)))
 
 
 def create_tbs():
+    if DEBUG:
+        print '#DEBUG: TB\'s sheet\'i olusturuluyor'
+        logging.debug('#DEBUG: TB\'s sheet\'i olusturuluyor'
+                      )
     worksheet = workbook.add_worksheet('TBs')
     red = workbook.add_format({'bold': True, 'font_color': 'red'})
     header = workbook.add_format({'bold': True, 'bg_color': GRI_BG, 'top': 1, 'bottom': 1})
@@ -68,6 +85,10 @@ def create_tbs():
 
 
 def create_comperative():
+    if DEBUG:
+        print '#DEBUG: Comparative TB olusturuluyor'
+        logging.debug('#DEBUG: Comparative TB olusturuluyor'
+                      )
     worksheet = workbook.add_worksheet('Comperative TB')
     worksheet.set_zoom(80)
     worksheet.hide_gridlines(2)
@@ -157,6 +178,10 @@ def create_headline(worksheet, tip='bd'):
 
 
 def create_alltb():
+    if DEBUG:
+        print '#DEBUG: TB Mapping olusturuluyor.'
+        logging.debug('#DEBUG: TB Mapping olusturuluyor.'
+                      )
     worksheet = workbook.add_worksheet('TB Mapping')
     worksheet.set_zoom(80)
     worksheet.hide_gridlines(2)
@@ -344,6 +369,10 @@ def create_alltb():
 
 
 def create_lead(hesap):
+    if DEBUG:
+        print '#DEBUG: %s lead\'i olusturuluyor.' % hesap
+        logging.debug('#DEBUG: %s lead\'i olusturuluyor.' % hesap)
+
     worksheet = workbook.add_worksheet('%s Lead' % hesap)
     worksheet.set_zoom(80)
     worksheet.hide_gridlines(2)
@@ -423,6 +452,10 @@ def create_lead(hesap):
 
 
 def create_breakdown(hesap):
+    if DEBUG:
+        print '#DEBUG: %s breakdown olusturuluyor.' % hesap
+        logging.debug('#DEBUG: %s breakdown olusturuluyor.' % hesap)
+
     worksheet = workbook.add_worksheet('%s1 - BD' % hesap)
     worksheet.set_zoom(80)
     worksheet.hide_gridlines(2)
@@ -523,6 +556,10 @@ def create_breakdown(hesap):
 
 
 def create_leads():
+    if DEBUG:
+        print '#DEBUG: Leadler dokuluyor.'
+        logging.debug('#DEBUG: Leadler dokuluyor.')
+
     for k in db.session.query(db.Lead).group_by(db.Lead.lead_code).order_by(db.Lead.lead_code).all():
         if k.lead_code == 'Unmapped':
             continue
@@ -538,7 +575,10 @@ def create_leads():
 
 
 def create_a4():
-    # bitmedi daha
+    if DEBUG:
+        print '#DEBUG: TB Mapping olusturuluyor.'
+        logging.debug('#DEBUG: TB Mapping olusturuluyor.')
+
     file_name = 'a4'
 
     if db.tanimlar['company'] and db.periods['cy']:
@@ -548,6 +588,7 @@ def create_a4():
     create_tbs()
     create_comperative()
     create_alltb()
-    # fill_the_blanks()
     create_leads()
+    if not os.path.exists(cikti_folder):
+        os.mkdir(cikti_folder)
     workbook.close()
