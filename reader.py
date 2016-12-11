@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
-import logging
-import sys
 
-from sqlalchemy import func
+__author__ = 'fatihka'
+
 from xlrd import open_workbook
-
+from sqlalchemy import func
 import db
-import globi
 
-DEBUG = globi.DEBUG
+# home = os.getenv('HOME')
+# desktop = os.path.join(home, 'Desktop')
+# file = os.path.join(desktop, 'a3.xlsx')
 
-LOG_FILENAME = 'example.log'
-logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG, stream=sys.stdout)
+verbose = True
 
-
+"""
 SINIFLANDIRMA = {u'C': u'Cash and cash equivalents', u'D': u'Marketable securities', u'E': u'Trade receivables',
                  u'F': u'Inventories', u'G': u'Prepaid expenses and other current assets', u'H': u'Investments',
                  u'J': u'Other non-current assets',
@@ -306,133 +305,182 @@ ACCOUNT_NAMES = {u'265': {'Name': u'PP&E Acquired Through Financial Leases', 'Le
                  u'681': {'Name': u'Prior Period Expenses', 'Lead': u'UB'},
                  u'680': {'Name': u'Idle Capacity Expenses', 'Lead': u'UB'},
                  u'358': {'Name': u'Construction Inflation Adjustment Spread Over Years', 'Lead': u'P'}}
+"""
 
 
-def prepare_db():
+def parse_excel_file(file):
     '''
-    Hesap kodlari ve lead mappingini database'e aktariyor.
-    SINIFLANDIRMA ve hesap_kodlari dictionary'leri ile calisiyorlar.
-    :param: None
-    :return: None
-    '''
-
-    if DEBUG:
-        print '#DEBUG: DB olusturuluyor. Ana hesap ve lead mappingi aktariliyor.'
-        logging.debug('#DEBUG: DB olusturuluyor. Ana hesap ve lead mappingi aktariliyor.')
-    for k, v in hesap_kodlari.iteritems():
-        for a in v:
-            db.session.add(db.Lead(account=a, lead_code=k, name=SINIFLANDIRMA[k]))
-
-    db.session.commit()
-
-
-def parse_excel_file(inp):
-    """
-    :param inp: String, Path to excel file.
+    YENI
+    :param file: String, Path to excel file.
     :return: Array
-    """
+    '''
 
-    if DEBUG:
-        print '#DEBUG: %s aciliyor.' % inp
-        logging.debug('#DEBUG: %s aciliyor.' % inp)
+    excel_file = open_workbook(file, encoding_override='utf-8')
 
-    excel_file = open_workbook(inp, encoding_override='utf-8')
+    def prepare_mapping():
+        s = excel_file.sheet_by_name("Mapping")
 
-    donus = dict()
+        for x in range(1, s.nrows):
+            db.session.add(
+                db.Lead(account=s.cell(x, 0).value, account_name=s.cell(x, 1).value, lead_code=s.cell(x, 2).value,
+                        name=s.cell(x, 3).value))
+
+        db.session.commit()
+
+    # def define_variables():
+    #
+    #     sheet = excel_file.sheet_by_index(0)
+    #
+    #     py1 = sheet.cell(7, 2).value if not sheet.cell(7, 2).ctype is 0 else ''
+    #
+    #     db.periods['cy'] = sheet.cell(9, 2).value
+    #     db.periods['py2'] = sheet.cell(8, 2).value
+    #     db.periods['py1'] = py1
+    #     db.tanimlar['company'] = sheet.cell(6, 2).value
 
     def define_variables():
-
-        if DEBUG:
-            print '#DEBUG: Donemler ve sirket ismi aktariliyor.'
-            logging.debug('#DEBUG: Donemler ve sirket ismi aktariliyor.')
-
         sheet = excel_file.sheet_by_index(0)
 
-        py1 = sheet.cell(7, 2).value if not sheet.cell(7, 2).ctype is 0 else ''
-
-        db.periods['cy'] = sheet.cell(9, 2).value
-        db.periods['py2'] = sheet.cell(8, 2).value
-        db.periods['py1'] = py1
         db.tanimlar['company'] = sheet.cell(6, 2).value
 
+        for sheet in excel_file.sheets()[2:]:
+            db.periodss.append(sheet.name)
+
+    donus = dict()
     define_variables()
+    db.Hesaplar=db.make_hesaplar()
+    db.create_db()
+    prepare_mapping()
 
-    for i in xrange(1, 4):
-
+    for i in range(2, excel_file.nsheets):
         sheet = excel_file.sheet_by_index(i)
         key = sheet.name
 
-        if key == 'CY Detailed TB':
-            key = db.periods['cy']
-        elif key == 'PY2 Detailed TB':
-            key = db.periods['py2']
-        elif key == 'PY1 Detailed TB':
-            key = db.periods['py1']
-
-        if DEBUG:
-            print '#DEBUG: %s sheet\'i aktariliyor.' % key
-            logging.debug('#DEBUG: %s sheet\'i aktariliyor.' % key)
-
-        for row in xrange(sheet.nrows):
+        for row in range(1, sheet.nrows):
             temp = []
 
-            if row == 0:
-                continue
+            hucre = str(int(sheet.cell_value(row, 0))) if type(sheet.cell_value(row, 0)) is float else \
+                sheet.cell_value(row, 0)
 
-            hucre = unicode(int(sheet.cell_value(row, 0))) if type(
-                sheet.cell_value(row, 0)) is float else sheet.cell_value(row, 0)
+            if hucre not in donus: donus[hucre] = dict()
 
-            if hucre not in donus:
-                donus[hucre] = dict()
-
-            for col in xrange(sheet.ncols):
+            for col in range(sheet.ncols):
                 if col is 0 and type(sheet.cell_value(row, col)) is float:
-                    temp.append(unicode(int(sheet.cell_value(row, col))))  # burasi duzeltilecek bug var.
+                    temp.append(str(int(sheet.cell_value(row, col))))  # burasi duzeltilecek bug var.
                 else:
                     temp.append(sheet.cell_value(row, col))
 
             gecici = db.session.query(db.Hesaplar).filter_by(number=hucre).first()
             ana_hesap = hucre[:3]
             lead_cod = None
-
             if db.session.query(db.Lead).filter_by(account=ana_hesap).first() is not None:
                 lead_cod = db.session.query(db.Lead).filter_by(account=ana_hesap).first().lead_code
 
             if gecici is not None:
-                if key is db.periods['cy']:
-                    gecici.cy = temp[4]
-                elif key is db.periods['py2']:
-                    gecici.py2 = temp[4]
-                else:
-                    gecici.py1 = temp[4]
-                if DEBUG:
-                    print '#DEBUG: %s database\'e aktarildi.' % hucre
-                    logging.debug('#DEBUG: %s database\'e aktarildi.' % hucre)
+                setattr(gecici,key,temp[4])
+                print(hucre, ' update')
             else:
-                if key is db.periods['cy']:
-                    db.session.add(
-                        db.Hesaplar(number=hucre, len=len(hucre), lead_code=lead_cod, ana_hesap=ana_hesap, name=temp[1],
-                                    cy=temp[4]))
-                elif key is db.periods['py2']:
-                    db.session.add(
-                        db.Hesaplar(number=hucre, len=len(hucre), name=temp[1], lead_code=lead_cod, ana_hesap=ana_hesap,
-                                    py2=temp[4]))
-                else:
-                    db.session.add(
-                        db.Hesaplar(number=hucre, name=temp[1], len=len(hucre), ana_hesap=ana_hesap, lead_code=lead_cod,
-                                    py1=temp[4]))
-                if DEBUG:
-                    print '#DEBUG: %s database\'e aktarildi.' % hucre
-                    logging.debug('#DEBUG: %s database\'e aktarildi.' % hucre)
+
+                db.session.add(
+                    db.Hesaplar(number=hucre, name=temp[1], len=len(hucre), ana_hesap=ana_hesap, lead_code=lead_cod,
+                                **{key: temp[4]}))
+                print(hucre, ' add')
 
         db.session.commit()
 
 
-def find_bds():
-    if DEBUG:
-        print '#DEBUG: Breakdown hesaplar belirleniyor.'
-        logging.debug('#DEBUG: Breakdown hesaplar belirleniyor.')
+# def parse_excel_file(file):
+#     '''
+#     YENI
+#     :param file: String, Path to excel file.
+#     :return: Array
+#     '''
+#
+#     excel_file = open_workbook(file, encoding_override='utf-8')
+#
+#     def prepare_mapping():
+#         s = excel_file.sheet_by_name("Mapping")
+#
+#         for x in range(1, s.nrows):
+#             db.session.add(
+#                 db.Lead(account=s.cell(x, 0).value, account_name=s.cell(x, 1).value, lead_code=s.cell(x, 2).value,
+#                         name=s.cell(x, 3).value))
+#
+#         db.session.commit()
+#
+#     def define_variables():
+#
+#         sheet = excel_file.sheet_by_index(0)
+#
+#         py1 = sheet.cell(7, 2).value if not sheet.cell(7, 2).ctype is 0 else ''
+#
+#         db.periods['cy'] = sheet.cell(9, 2).value
+#         db.periods['py2'] = sheet.cell(8, 2).value
+#         db.periods['py1'] = py1
+#         db.tanimlar['company'] = sheet.cell(6, 2).value
+#
+#     donus = dict()
+#     prepare_mapping()
+#     define_variables()
+#
+#     for i in range(2, 5):
+#         sheet = excel_file.sheet_by_index(i)
+#         key = sheet.name
+#
+#         if key == 'CY Detailed TB':
+#             key = db.periods['cy']
+#         elif key == 'PY2 Detailed TB':
+#             key = db.periods['py2']
+#         elif key == 'PY1 Detailed TB':
+#             key = db.periods['py1']
+#
+#         for row in range(1, sheet.nrows):
+#             temp = []
+#
+#             hucre = str(int(sheet.cell_value(row, 0))) if type(
+#                 sheet.cell_value(row, 0)) is float else sheet.cell_value(row, 0)
+#
+#             if hucre not in donus: donus[hucre] = dict()
+#
+#             for col in range(sheet.ncols):
+#                 if col is 0 and type(sheet.cell_value(row, col)) is float:
+#                     temp.append(str(int(sheet.cell_value(row, col))))  # burasi duzeltilecek bug var.
+#                 else:
+#                     temp.append(sheet.cell_value(row, col))
+#
+#             gecici = db.session.query(db.Hesaplar).filter_by(number=hucre).first()
+#             ana_hesap = hucre[:3]
+#             lead_cod = None
+#             if db.session.query(db.Lead).filter_by(account=ana_hesap).first() is not None:
+#                 lead_cod = db.session.query(db.Lead).filter_by(account=ana_hesap).first().lead_code
+#
+#             if gecici is not None:
+#                 if key is db.periods['cy']:
+#                     gecici.cy = temp[4]
+#                 elif key is db.periods['py2']:
+#                     gecici.py2 = temp[4]
+#                 else:
+#                     gecici.py1 = temp[4]
+#                 print(hucre, ' update')
+#             else:
+#                 if key is db.periods['cy']:
+#                     db.session.add(
+#                         db.Hesaplar(number=hucre, len=len(hucre), lead_code=lead_cod, ana_hesap=ana_hesap, name=temp[1],
+#                                     cy=temp[4]))
+#                 elif key is db.periods['py2']:
+#                     db.session.add(
+#                         db.Hesaplar(number=hucre, len=len(hucre), name=temp[1], lead_code=lead_cod, ana_hesap=ana_hesap,
+#                                     py2=temp[4]))
+#                 else:
+#                     db.session.add(
+#                         db.Hesaplar(number=hucre, name=temp[1], len=len(hucre), ana_hesap=ana_hesap, lead_code=lead_cod,
+#                                     py1=temp[4]))
+#                 print(hucre, ' add')
+#
+#         db.session.commit()
 
+
+def find_bds():
     accounts = db.session.query(db.Hesaplar).all()
     for k in accounts:
         if len(db.session.query(db.Hesaplar).filter(db.Hesaplar.number.startswith(k.number)).all()) <= 1:
@@ -448,10 +496,6 @@ def summary_check():
 
 
 def create_summary_accs():
-    if DEBUG:
-        print '#DEBUG: Summary account\'lar olusturuluyor.'
-        logging.debug('#DEBUG: Summary account\'lar olusturuluyor.')
-
     query = db.session.query(db.Hesaplar.ana_hesap,
                              db.Hesaplar.lead_code,
                              func.sum(db.Hesaplar.py1).label('py1'),
@@ -479,29 +523,34 @@ def create_summary_accs():
     db.session.commit()
 
 
-def fix_mainaccs():
-    """
-    Ana hesap isimlerini ingilizce yapiyor
-    :return: None
-    """
-    query = db.session.query(db.Hesaplar).filter_by(len=3)
+# def fix_mainaccs():
+#     '''
+#     Ana hesap isimlerini ingilizce yapiyor
+#     :return: None
+#     '''
+#     query = db.session.query(db.Hesaplar).filter_by(len=3)
+#
+#     for k in query.all():
+#         db.session.query(db.Lead).filter_by(account=k.ana_hesap)
+#
+#         if k.ana_hesap in ACCOUNT_NAMES:
+#             item = ACCOUNT_NAMES[k.ana_hesap]['Name']
+#             k.name = item
+#
+#     db.session.commit()
 
-    for k in query.all():
-        if k.ana_hesap in ACCOUNT_NAMES:
-            item = ACCOUNT_NAMES[k.ana_hesap]['Name']
-            k.name = item
+def fix_mainaccs():
+    hesaplar = db.session.query(db.Hesaplar).filter_by(len=3)
+    for k in hesaplar.all():
+        item = db.session.query(db.Lead).filter_by(account=k.ana_hesap).first()
+        if item:
+            k.name = item.account_name
 
     db.session.commit()
 
 
-def delete_zeros(exceptions=None):
-    if DEBUG:
-        print '#DEBUG: Bakiyesiz hesaplar kaldiriliyor.'
-        logging.debug('#DEBUG: Bakiyesiz hesaplar kaldiriliyor.')
-
-    if not exceptions:
-        exceptions = ['900']
-    query = db.session.query(db.Hesaplar).filter_by(py1=0, py2=0, cy=0).all()
+def delete_zeros(exceptions=['900']):
+    query = db.session.query(db.Hesaplar).filter_by(**{k:0 for k in db.periodss}).all()
     for item in query:
         if item.number[:3] in exceptions:
             continue
@@ -511,10 +560,6 @@ def delete_zeros(exceptions=None):
 
 
 def create_or_parse_sum():
-    if DEBUG:
-        print '#DEBUG: Summary hesap kontrolu yapiliyor.'
-        logging.debug('#DEBUG: Summary hesap kontrolu yapiliyor.')
-
     if summary_check():
         return True
     else:

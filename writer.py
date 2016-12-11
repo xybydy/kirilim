@@ -1,16 +1,9 @@
-import logging
+__author__ = 'fatihka'
 import os
-import sys
 
 import xlsxwriter
-from sqlalchemy import desc, asc
-
 import db
-import globi
-
-LOG_FILENAME = 'example.log'
-logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG, stream=sys.stdout)
-
+from sqlalchemy import desc, asc
 
 NUM_FORMAT = '_(* #,##0_);_(* (#,##0);_(* "-"_);_(@_)'
 PERC_FORMAT = '0%'
@@ -21,26 +14,19 @@ BLUE = '#0000D4'
 TBS_PEMBE = '#FDE9D9'
 PL_HESAPLAR = ['UA', 'UB', 'X', 'VA', 'VC', 'VE']
 
-directory = os.getcwdu()
-cikti_folder = os.path.join(directory, "cikti")
+dir = os.path.abspath(".")
+cikti_folder = os.path.join(dir, "cikti")
 
-DEBUG = globi.DEBUG
+if not os.path.exists(cikti_folder):
+    os.mkdir(cikti_folder)
 
 
 def create_workbook(isim):
-    if DEBUG:
-        print '#DEBUG: Workbook olusturuluyor.'
-        logging.debug('#DEBUG: Workbook olusturuluyor.')
-
     global workbook
-    workbook = xlsxwriter.Workbook(os.path.join(cikti_folder, '{}.xlsx'.format(isim)))
+    workbook = xlsxwriter.Workbook(os.path.join(cikti_folder, ('{}.xlsx').format(isim)))
 
 
 def create_tbs():
-    if DEBUG:
-        print '#DEBUG: TB\'s sheet\'i olusturuluyor'
-        logging.debug('#DEBUG: TB\'s sheet\'i olusturuluyor'
-                      )
     worksheet = workbook.add_worksheet('TBs')
     red = workbook.add_format({'bold': True, 'font_color': 'red'})
     header = workbook.add_format({'bold': True, 'bg_color': GRI_BG, 'top': 1, 'bottom': 1})
@@ -59,14 +45,11 @@ def create_tbs():
 
     column += 2
 
-    for k, v in db.periods.items():
-
-        if v is '':
-            continue
-
-        worksheet.write_string(row, column, '%s' % v, header)
+    for k in db.periodss:
+        worksheet.write_string(row, column, '%s' % k, header)
         column += 1
 
+    column = 0
     row += 1
 
     ana_hesaplar = db.session.query(db.Hesaplar).filter_by(len=3).order_by(db.Hesaplar.number).all()
@@ -74,9 +57,9 @@ def create_tbs():
     for item in ana_hesaplar:
         worksheet.write_string(row, 0, item.number, isim)
         worksheet.write_string(row, 1, item.name, isim)
-        worksheet.write_number(row, 2, item.py1, data)
-        worksheet.write_number(row, 3, item.py2, data)
-        worksheet.write_number(row, 4, item.cy, data)
+
+        for period in db.periodss:
+            worksheet.write_number(row, db.periodss.index(period) + 2, getattr(item, period), data)
         row += 1
 
     worksheet.write_formula(0, 2, '=SUM(C3:C%s)' % row, workbook.add_format({'num_format': NUM_FORMAT}))
@@ -85,10 +68,6 @@ def create_tbs():
 
 
 def create_comperative():
-    if DEBUG:
-        print '#DEBUG: Comparative TB olusturuluyor'
-        logging.debug('#DEBUG: Comparative TB olusturuluyor'
-                      )
     worksheet = workbook.add_worksheet('Comperative TB')
     worksheet.set_zoom(80)
     worksheet.hide_gridlines(2)
@@ -112,12 +91,8 @@ def create_comperative():
 
     create_headline(worksheet)
 
-    for k, v in db.periods.items():
-
-        if v is '':
-            continue
-
-        worksheet.write_string(row, col, '%s' % v, border)
+    for k in db.periodss:
+        worksheet.write_string(row, col, '%s' % k, border)
         col += 1
 
     row += 1
@@ -127,14 +102,13 @@ def create_comperative():
     for item in ana_hesaplar:
         worksheet.write_string(row, 1, item.number)
         worksheet.write_string(row, 2, item.name)
-        worksheet.write_number(row, 3, item.py1, money)
-        worksheet.write_number(row, 4, item.py2, money)
-        worksheet.write_number(row, 5, item.cy, money)
+        for period in db.periodss:
+            worksheet.write_number(row, db.periodss.index(period) + 3, getattr(item, period), money)
         worksheet.write_formula(row, 6, '=F%s-E%s' % (row + 1, row + 1), money)
         row += 1
 
 
-def create_headline(worksheet, tip='bd'):
+def create_headline(worksheet, type='bd'):
     # 3 satir 7 sutun kadar
     topline = workbook.add_format()
     topline.set_bg_color(GRI_BG)
@@ -153,21 +127,21 @@ def create_headline(worksheet, tip='bd'):
     ff_1 = workbook.add_format({'bold': True, 'bg_color': GRI_BG})
     ff_2 = workbook.add_format({'bold': True, 'bg_color': GRI_BG, 'bottom': 1})
 
-    for x in xrange(3):
-        for y in xrange(9):
+    for x in range(3):
+        for y in range(9):
             if x == 2 and y == 8:
                 worksheet.write_blank(x, y, None, double)
             elif y == 1 and x == 0:
                 worksheet.write_string(x, y, db.tanimlar['company'], ff_1)
             elif y == 1 and x == 1:
-                worksheet.write_string(x, y, db.periods['cy'], ff_1)
+                worksheet.write_string(x, y, db.periodss[-1], ff_1)
             elif y == 1 and x == 2:
-                if tip == 'bd':
+                if type == 'bd':
                     worksheet.write_string(x, y, 'BD of Accounts', ff_2)
-                elif tip == 'tb':
+                elif type == 'tb':
                     worksheet.write_string(x, y, 'All TBs', ff_2)
                 else:
-                    baslik = db.session.query(db.Lead).filter_by(lead_code=tip).first().name
+                    baslik = db.session.query(db.Lead).filter_by(lead_code=type).first().name
                     worksheet.write_string(x, y, baslik, ff_2)
             elif x == 2:
                 worksheet.write_blank(x, y, None, bottom)
@@ -178,10 +152,6 @@ def create_headline(worksheet, tip='bd'):
 
 
 def create_alltb():
-    if DEBUG:
-        print '#DEBUG: TB Mapping olusturuluyor.'
-        logging.debug('#DEBUG: TB Mapping olusturuluyor.'
-                      )
     worksheet = workbook.add_worksheet('TB Mapping')
     worksheet.set_zoom(80)
     worksheet.hide_gridlines(2)
@@ -207,22 +177,22 @@ def create_alltb():
 
     create_headline(worksheet, 'tb')
 
-    for x in xrange(1, 4):
+    for x in range(1, 4):
         if x is 1:
             worksheet.write_blank(row, x, None,
                                   workbook.add_format({'bg_color': GRI_BG, 'left': 1, 'top': 1, 'bottom': 1}))
         else:
             worksheet.write_blank(row, x, None, border)
 
-    for k, v in db.periods.items():
+    for k in db.periodss:
         if col is 6:
-            worksheet.write_string(row, col, '%s' % v, workbook.add_format(
+            worksheet.write_string(row, col, '%s' % k, workbook.add_format(
                 {'bold': True, 'bg_color': GRI_BG, 'right': 1, 'top': 1, 'bottom': 1}))
         else:
-            worksheet.write_string(row, col, '%s' % v, border)
+            worksheet.write_string(row, col, '%s' % k, border)
         col += 1
 
-    for i in xrange(6, 11):
+    for i in range(6, 11):
         worksheet.write_blank(i, 1, None, workbook.add_format({'left': 1}))
         if i is 10:
             worksheet.write_blank(i, 1, None, workbook.add_format({'left': 1, 'bottom': 1}))
@@ -269,12 +239,12 @@ def create_alltb():
     row = 14
     col = 4
 
-    for k, v in db.periods.items():
+    for k in db.periodss:
         if col is 6:
-            worksheet.write_string(row, col, '%s' % v, workbook.add_format(
+            worksheet.write_string(row, col, '%s' % k, workbook.add_format(
                 {'top': 1, 'bottom': 1, 'right': 1, 'bg_color': GRI_BG, 'bold': True}))
         else:
-            worksheet.write_string(row, col, '%s' % v, border)
+            worksheet.write_string(row, col, '%s' % k, border)
         col += 1
 
     row = 15
@@ -285,7 +255,7 @@ def create_alltb():
         if item.lead_code == 'Unmapped':
             continue
 
-        if item.lead_code is not "X":
+        if not item.lead_code is "X":
             # worksheet.write_blank(row,0,None,workbook.add_format({'left':1,'bg_color':EY_SARI}))
             worksheet.write_blank(row, 1, None, workbook.add_format({'left': 1, 'bg_color': EY_SARI}))
             worksheet.write_string(row, 2, item.name, workbook.add_format({'bg_color': EY_SARI}))
@@ -316,12 +286,9 @@ def create_alltb():
     worksheet.write_string(row, 2, 'Description', border)
     worksheet.write_blank(row, 3, None, border)
 
-    for k, v in db.periods.items():
+    for v in db.periodss:
 
-        if v is '':
-            continue
-
-        if v is db.periods.get('cy'):
+        if v is db.periodss[-1]:
             worksheet.write_string(row, col, '%s' % v, workbook.add_format(
                 {'bg_color': GRI_BG, 'bold': True, 'bottom': 1, 'top': 1, 'right': 1, 'align': 'right'}))
 
@@ -345,12 +312,12 @@ def create_alltb():
                                 workbook.add_format({'bg_color': EY_SARI, 'right': 1, 'num_format': NUM_FORMAT}))
         row += 1
 
-    for i in xrange(1, 7):
+    for i in range(1, 7):
         worksheet.write_blank(row, i, None, workbook.add_format({'top': 1}))
 
     hesap_s = row
 
-    for x in xrange(lead_b, lead_s):
+    for x in range(lead_b, lead_s):
         if x < hesap_b - 4:
             worksheet.write_formula(x, 4, '=SUMIF(D%s:D%s,D%s,E%s:E%s)' % (hesap_b, hesap_s, x + 1, hesap_b, hesap_s),
                                     workbook.add_format({'num_format': NUM_FORMAT, 'bg_color': EY_SARI}))
@@ -369,10 +336,6 @@ def create_alltb():
 
 
 def create_lead(hesap):
-    if DEBUG:
-        print '#DEBUG: %s lead\'i olusturuluyor.' % hesap
-        logging.debug('#DEBUG: %s lead\'i olusturuluyor.' % hesap)
-
     worksheet = workbook.add_worksheet('%s Lead' % hesap)
     worksheet.set_zoom(80)
     worksheet.hide_gridlines(2)
@@ -396,11 +359,7 @@ def create_lead(hesap):
 
     col += 2
 
-    for k, v in db.periods.items():
-
-        if v is '':
-            continue
-
+    for v in db.periodss:
         worksheet.write_string(row, col, '%s' % v, border)
         col += 1
 
@@ -412,10 +371,10 @@ def create_lead(hesap):
         row += 1
         worksheet.write_string(row, 1, '%s' % item.number)
         worksheet.write_string(row, 2, '%s' % item.name)
-        worksheet.write_number(row, 3, item.py1, money)
-        worksheet.write_number(row, 4, item.py2, money)
-        worksheet.write_number(row, 5, item.cy, money)
-        if hesap in PL_HESAPLAR and db.periods.get("cy")[3:5] != "12":
+        for period in db.periodss:
+            worksheet.write_number(row, db.periodss.index(period) + 3, getattr(item, period), money)
+
+        if hesap in PL_HESAPLAR and db.periodss[-1][3:5] != "12":
             worksheet.write_formula(row, 7, '=IF(D%s=0,"INF",IF(F%s=0,"-100",(F%s-D%s)/F%s))' % (
                 row + 1, row + 1, row + 1, row + 1, row + 1), percn)
         else:
@@ -452,11 +411,7 @@ def create_lead(hesap):
 
 
 def create_breakdown(hesap):
-    if DEBUG:
-        print '#DEBUG: %s breakdown olusturuluyor.' % hesap
-        logging.debug('#DEBUG: %s breakdown olusturuluyor.' % hesap)
-
-    worksheet = workbook.add_worksheet('%s1 - BD' % hesap)
+    worksheet = workbook.add_worksheet(('%s1 - BD') % hesap)
     worksheet.set_zoom(80)
     worksheet.hide_gridlines(2)
 
@@ -483,38 +438,39 @@ def create_breakdown(hesap):
         worksheet.write_string(row, col, 'Acc.', header)
         worksheet.write_string(row, col + 1, 'Descripton', header)
         col += 2
-        for k, v in db.periods.items():
 
-            if v is '':
-                continue
-
+        for v in db.periodss:
             worksheet.write_string(row, col, '%s' % v, header)
             col += 1
+
         worksheet.write_string(row, col, 'Change', header)
         worksheet.write_string(row, col + 1, 'Flux', header)
 
         col = 1
 
         list_of_bds = db.session.query(db.Hesaplar).filter_by(ana_hesap=item.number, bd=True).order_by(
-            desc(db.Hesaplar.cy)).all() if (item.lead_code not in {"M", "N", "O", "P", "T", "UA"} or (
-            item.ana_hesap in {"302", "402", "322", "422", "437", "337", "610", "611", "612", "653", "642", "654",
-                               "655",
-                               "659", "680", "681", "682", "689", "656", "657", "660", "661"} and item.lead_code in {
-                "UB",
-                "VE",
-                "M",
-                "N",
-                "UA"})) else db.session.query(
-            db.Hesaplar).filter_by(ana_hesap=item.number, bd=True).order_by(asc(db.Hesaplar.cy)).all()
+            desc(getattr(db.Hesaplar, db.periodss[-1]))).all() if (
+            item.lead_code not in {"M", "N", "O", "P", "T", "UA"} or (
+                item.ana_hesap in {"302", "402", "322", "422", "437", "337", "610", "611", "612", "653", "642", "654",
+                                   "655",
+                                   "659", "680", "681", "682", "689", "656", "657", "660",
+                                   "661"} and item.lead_code in {
+                    "UB",
+                    "VE",
+                    "M",
+                    "N",
+                    "UA"})) else db.session.query(
+            db.Hesaplar).filter_by(ana_hesap=item.number, bd=True).order_by(
+            asc(getattr(db.Hesaplar, db.periodss[-1]))).all()
 
         for eben in list_of_bds:
             row += 1
-            worksheet.write_string(row, 1, '%s' % eben.number)
-            worksheet.write_string(row, 2, '%s' % eben.name)
-            worksheet.write_number(row, 3, eben.py1, money)
-            worksheet.write_number(row, 4, eben.py2, money)
-            worksheet.write_number(row, 5, eben.cy, money)
-            if hesap in PL_HESAPLAR and db.periods.get("cy")[3:5] != "12":
+            worksheet.write_string(row, 1, ('%s') % eben.number)
+            worksheet.write_string(row, 2, ('%s') % eben.name)
+            for period in db.periodss:
+                worksheet.write_number(row, db.periodss.index(period) + 3, getattr(eben, period), money)
+
+            if hesap in PL_HESAPLAR and db.periodss[-1][3:5] != "12":
                 worksheet.write_formula(row, 6, '=F%s-D%s' % (row + 1, row + 1), money)
                 worksheet.write_formula(row, 7, '=IF(D%s=0,"INF",IF(F%s=0,"-100",(F%s-D%s)/F%s))' % (
                     row + 1, row + 1, row + 1, row + 1, row + 1), percn)
@@ -525,7 +481,7 @@ def create_breakdown(hesap):
 
         row += 2
 
-        for i in xrange(1, 8):
+        for i in range(1, 8):
             if i == 2:
                 worksheet.write_string(row, i, 'Total', dipler)
                 worksheet.write_string(row + 2, i, 'Check', dipler)
@@ -556,10 +512,6 @@ def create_breakdown(hesap):
 
 
 def create_leads():
-    if DEBUG:
-        print '#DEBUG: Leadler dokuluyor.'
-        logging.debug('#DEBUG: Leadler dokuluyor.')
-
     for k in db.session.query(db.Lead).group_by(db.Lead.lead_code).order_by(db.Lead.lead_code).all():
         if k.lead_code == 'Unmapped':
             continue
@@ -575,20 +527,15 @@ def create_leads():
 
 
 def create_a4():
-    if DEBUG:
-        print '#DEBUG: TB Mapping olusturuluyor.'
-        logging.debug('#DEBUG: TB Mapping olusturuluyor.')
-
+    # bitmedi daha
     file_name = 'a4'
 
-    if db.tanimlar['company'] and db.periods['cy']:
-        file_name = '{0} - {1}'.format(db.tanimlar['company'].encode('utf-8'), db.periods['cy'])
+    if db.tanimlar['company']:
+        file_name = '{0} - {1}'.format(db.tanimlar['company'].encode('utf-8'), db.periodss[-1])
 
     create_workbook(file_name)
     create_tbs()
     create_comperative()
     create_alltb()
     create_leads()
-    if not os.path.exists(cikti_folder):
-        os.mkdir(cikti_folder)
     workbook.close()

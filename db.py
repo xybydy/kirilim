@@ -1,45 +1,66 @@
-from sqlalchemy import Column, Integer, String, Unicode, Boolean, create_engine, Float
+__author__ = 'fatihka'
+
+from sqlalchemy import Column, Integer, String, Unicode, Float, Boolean, create_engine, Table
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-
-
-from globi import DB_NAME
 
 __all__ = ['Hesaplar', 'Lead', 'session', 'tanimlar']
 
 Base = declarative_base()
 
-
+db_name = 'qq.db'
 tanimlar = {'company': 'Fatih Ka.'}
-periods = dict(cy='31.12.2015', py1='31.12.2013', py2='31.12.2014')
+periodss = list()
 
+# class Hesaplar(Base):
+#     __tablename__ = 'hesaplar'
+#
+#     id = Column(Integer, primary_key=True)
+#     number = Column(String, nullable=True)
+#     ana_hesap = Column(String, nullable=True)
+#     name = Column(Unicode, nullable=True)
+#     lead_code = Column(String, default="Unmapped", nullable=True)
+#     cy = Column(Float, nullable=True, default=0)
+#     py1 = Column(Float, nullable=True, default=0)
+#     py2 = Column(Float, nullable=True, default=0)
+#     len = Column(Integer, nullable=True)
+#     bd = Column(Boolean, nullable=False, default=False)
 
-class Hesaplar(Base):
-    __tablename__ = 'hesaplar'
-
-    id = Column(Integer, primary_key=True)
-    number = Column(String, nullable=True)
-    ana_hesap = Column(String, nullable=True)
-    name = Column(Unicode, nullable=True)
-    lead_code = Column(String, default="Unmapped", nullable=True)
-    cy = Column(Float, nullable=True, default=0)
-    py1 = Column(Float, nullable=True, default=0)
-    py2 = Column(Float, nullable=True, default=0)
-    len = Column(Integer, nullable=True)
-    bd = Column(Boolean, nullable=False, default=False)
+Hesaplar = None
+session = None
 
 
 class Lead(Base):
     __tablename__ = 'ana_hesaplar'
-
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=True)
     lead_code = Column(String, nullable=True)
     account = Column(String, nullable=True)
+    account_name = Column(String, nullable=True)
 
 
-engine = create_engine("sqlite:///%s" % DB_NAME, echo=False)
+def make_hesaplar():
+    class Hesaplar(Base):
+        __table__ = Table('hesaplar', Base.metadata,
+                          Column('id', Integer, primary_key=True),
+                          Column('number', String, nullable=True),
+                          Column('ana_hesap', String, nullable=True),
+                          Column('name', Unicode, nullable=True),
+                          Column('lead_code', String, default='Unmapped', nullable=True),
+                          Column('len', Integer, nullable=True),
+                          Column('bd', Boolean, nullable=True, default=False),
+                          *[Column('%s'%i, Float, nullable=True, default=0) for i in periodss]
+                          )
 
-Base.metadata.create_all(engine)
-Session = sessionmaker(bind=engine)
-session = Session()
+    return Hesaplar
+
+
+def create_db():
+    global session
+    engine = create_engine("sqlite:///%s" % db_name, echo=False)  # engine = create_engine("sqlite://", echo=False)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+
+
