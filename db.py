@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Unicode, Boolean, create_engine,
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+
 from globi import DB_NAME
 
 __all__ = ['Hesaplar', 'Lead', 'session', 'tanimlar']
