@@ -60,4 +60,4 @@ docs/_build/
 target/
 a3.xlsx
 cikti/
-/.idea/
+.idea/dataSources.xml
