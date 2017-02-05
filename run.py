@@ -11,7 +11,6 @@ from writer import create_a4
 
 dir = os.path.abspath(".")
 file = os.path.join(dir, "a3.xlsx")
-"kjkj"
 # prepare_mapping(file)
 # prepare_db()
 parse_excel_file(file)
