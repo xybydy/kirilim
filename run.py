@@ -19,6 +19,3 @@ create_or_parse_sum()
 fix_mainaccs()
 find_bds()
 create_a4()
-
-# delete_zeros()
-# create_a4()

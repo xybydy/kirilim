@@ -22,7 +22,6 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
-*.xlsx
 *.pyc
 
 
@@ -58,6 +57,11 @@ docs/_build/
 
 # PyBuilder
 target/
-a3.xlsx
+*.xlsx
+.xlsx
 cikti/
-.idea/dataSources.xml
+.idea/
+.DS_Store
+qq.db
+qq.py
+ww.db

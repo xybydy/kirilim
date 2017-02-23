@@ -1,9 +1,11 @@
 __author__ = 'fatihka'
+
 import os
 
 import xlsxwriter
-import db
 from sqlalchemy import desc, asc
+
+import db
 
 NUM_FORMAT = '_(* #,##0_);_(* (#,##0);_(* "-"_);_(@_)'
 PERC_FORMAT = '0%'
@@ -14,6 +16,11 @@ BLUE = '#0000D4'
 TBS_PEMBE = '#FDE9D9'
 PL_HESAPLAR = ['UA', 'UB', 'X', 'VA', 'VC', 'VE']
 
+# ASCII A harfi 65'den baslar. hr kalkip ascii'dan devam edeyim
+
+
+W_ZOOM = 70
+
 dir = os.path.abspath(".")
 cikti_folder = os.path.join(dir, "cikti")
 
@@ -23,7 +30,7 @@ if not os.path.exists(cikti_folder):
 
 def create_workbook(isim):
     global workbook
-    workbook = xlsxwriter.Workbook(os.path.join(cikti_folder, ('{}.xlsx').format(isim)))
+    workbook = xlsxwriter.Workbook(os.path.join(cikti_folder, '{}.xlsx'.format(isim)))
 
 
 def create_tbs():
@@ -33,43 +40,43 @@ def create_tbs():
     isim = workbook.add_format({'bg_color': GRI_BG})
     data = workbook.add_format({'bg_color': TBS_PEMBE, 'num_format': NUM_FORMAT})
 
-    worksheet.set_zoom(80)
+    worksheet.set_zoom(W_ZOOM)
     worksheet.hide_gridlines(2)
 
-    row = 1
-    column = 0
-
-    worksheet.write_string('B1', 'Control', red)
+    worksheet.write_string(0, 1, 'Control', red)
     worksheet.write_string(1, 0, 'Acc', header)
     worksheet.write_string(1, 1, 'Description', header)
 
-    column += 2
+    row = 1
+    column = 2
 
     for k in db.periodss:
         worksheet.write_string(row, column, '%s' % k, header)
         column += 1
 
-    column = 0
     row += 1
 
     ana_hesaplar = db.session.query(db.Hesaplar).filter_by(len=3).order_by(db.Hesaplar.number).all()
 
     for item in ana_hesaplar:
-        worksheet.write_string(row, 0, item.number, isim)
-        worksheet.write_string(row, 1, item.name, isim)
+        worksheet.write_row(row, 0, [item.number, item.name], isim)
 
         for period in db.periodss:
             worksheet.write_number(row, db.periodss.index(period) + 2, getattr(item, period), data)
+
         row += 1
 
-    worksheet.write_formula(0, 2, '=SUM(C3:C%s)' % row, workbook.add_format({'num_format': NUM_FORMAT}))
-    worksheet.write_formula(0, 3, '=SUM(D3:D%s)' % row, workbook.add_format({'num_format': NUM_FORMAT}))
-    worksheet.write_formula(0, 4, '=SUM(E3:E%s)' % row, workbook.add_format({'num_format': NUM_FORMAT}))
+    for period in range(db.len_periods):
+        worksheet.write_formula(0, period + 2, '=SUM({0}3:{0}{1})'.format(chr(65 + 2 + period), row),
+                                workbook.add_format({'num_format': NUM_FORMAT}))
 
 
 def create_comperative():
+    """
+    en son buna bakicam
+    """
     worksheet = workbook.add_worksheet('Comperative TB')
-    worksheet.set_zoom(80)
+    worksheet.set_zoom(W_ZOOM)
     worksheet.hide_gridlines(2)
 
     row = 6
@@ -108,8 +115,8 @@ def create_comperative():
         row += 1
 
 
-def create_headline(worksheet, type='bd'):
-    # 3 satir 7 sutun kadar
+def create_headline(worksheet, type='bd', en=9):
+    # 3 satir 9 sutun kadar
     topline = workbook.add_format()
     topline.set_bg_color(GRI_BG)
     right = workbook.add_format()
@@ -128,8 +135,8 @@ def create_headline(worksheet, type='bd'):
     ff_2 = workbook.add_format({'bold': True, 'bg_color': GRI_BG, 'bottom': 1})
 
     for x in range(3):
-        for y in range(9):
-            if x == 2 and y == 8:
+        for y in range(en):
+            if x == 2 and y == en - 1:
                 worksheet.write_blank(x, y, None, double)
             elif y == 1 and x == 0:
                 worksheet.write_string(x, y, db.tanimlar['company'], ff_1)
@@ -145,7 +152,7 @@ def create_headline(worksheet, type='bd'):
                     worksheet.write_string(x, y, baslik, ff_2)
             elif x == 2:
                 worksheet.write_blank(x, y, None, bottom)
-            elif y == 8:
+            elif y == en - 1:
                 worksheet.write_blank(x, y, None, right)
             else:
                 worksheet.write_blank(x, y, None, topline)
@@ -153,7 +160,7 @@ def create_headline(worksheet, type='bd'):
 
 def create_alltb():
     worksheet = workbook.add_worksheet('TB Mapping')
-    worksheet.set_zoom(80)
+    worksheet.set_zoom(W_ZOOM)
     worksheet.hide_gridlines(2)
     # 1,86 3,86
     row = 5
@@ -172,10 +179,12 @@ def create_alltb():
     money = workbook.add_format()
     money.set_num_format(NUM_FORMAT)
 
-    worksheet.set_column(0, 0, 1.86)
-    worksheet.set_column(0, 0, 3.86)
+    # worksheet.set_column(0, 0, 1.86)
+    # worksheet.set_column(0, 0, 3.86)
 
     create_headline(worksheet, 'tb')
+
+    unmp = len(db.session.query(db.Hesaplar).filter_by(lead_code='Unmapped').all())
 
     for x in range(1, 4):
         if x is 1:
@@ -185,51 +194,62 @@ def create_alltb():
             worksheet.write_blank(row, x, None, border)
 
     for k in db.periodss:
-        if col is 6:
+        if col is db.periodss[-1]:
             worksheet.write_string(row, col, '%s' % k, workbook.add_format(
                 {'bold': True, 'bg_color': GRI_BG, 'right': 1, 'top': 1, 'bottom': 1}))
         else:
             worksheet.write_string(row, col, '%s' % k, border)
+
         col += 1
 
     for i in range(6, 11):
         worksheet.write_blank(i, 1, None, workbook.add_format({'left': 1}))
         if i is 10:
             worksheet.write_blank(i, 1, None, workbook.add_format({'left': 1, 'bottom': 1}))
-
+    # todo: buralari sigorta ve diger sirketleri goz onunde bulundrarak rakam kismini dinamic hale getirmek lazim.
     worksheet.write_string(6, 2, 'Assets', bold)
     worksheet.write_string(7, 2, 'Liabilities', bold)
     worksheet.write_string(8, 2, 'Shareholders\' equity', bold)
     worksheet.write_string(9, 2, 'Income & expenses', bold)
     worksheet.write_string(10, 2, 'Suspense accounts', workbook.add_format({'bold': 1, 'bottom': 1}))
-    worksheet.write_formula(6, 4, '=SUM(E16:E24)', money)
-    worksheet.write_formula(7, 4, '=SUM(E25:E29)', money)
-    worksheet.write_formula(8, 4, '=E30', money)
-    worksheet.write_formula(9, 4, '=SUM(E31:E35)', money)
-    worksheet.write_formula(10, 4, '=E36+E37', workbook.add_format({'bottom': 1, 'num_format': NUM_FORMAT}))
-    worksheet.write_formula(6, 5, '=SUM(F16:F24)', money)
-    worksheet.write_formula(7, 5, '=SUM(F25:F29)', money)
-    worksheet.write_formula(8, 5, '=F30', money)
-    worksheet.write_formula(9, 5, '=SUM(F31:F35)', money)
-    worksheet.write_formula(10, 5, '=F36+F37', workbook.add_format({'bottom': 1, 'num_format': NUM_FORMAT}))
-    worksheet.write_formula(6, 6, '=SUM(G16:G24)', workbook.add_format({'right': 1, 'num_format': NUM_FORMAT}))
-    worksheet.write_formula(7, 6, '=SUM(G25:G29)', workbook.add_format({'right': 1, 'num_format': NUM_FORMAT}))
-    worksheet.write_formula(8, 6, '=G30', workbook.add_format({'right': 1, 'num_format': NUM_FORMAT}))
-    worksheet.write_formula(9, 6, '=SUM(G31:G35)', workbook.add_format({'right': 1, 'num_format': NUM_FORMAT}))
-    worksheet.write_formula(10, 6, '=G36+G37', workbook.add_format({'right': 1, 'bottom': 1, 'num_format': NUM_FORMAT}))
+    worksheet.write_blank(10, 3, None, workbook.add_format({'bottom': 1}))
+
+    for col in range(db.len_periods):
+        if col == db.len_periods - 1:
+            fformat = workbook.add_format({'num_format': NUM_FORMAT, 'right': 1})
+
+            worksheet.write_formula(6, col + 4, '=SUM({0}16:{0}24)'.format(chr(65 + 4 + col)),
+                                    fformat)
+            worksheet.write_formula(7, col + 4, '=SUM({0}25:{0}29)'.format(chr(65 + 4 + col)),
+                                    fformat)
+            worksheet.write_formula(8, col + 4, '={}30'.format(chr(65 + 4 + col)),
+                                    fformat)
+            worksheet.write_formula(9, col + 4, '=SUM({0}31:{0}35)'.format(chr(65 + 4 + col)),
+                                    fformat)
+            # todo: alttaki guncellenecek
+            worksheet.write_formula(10, col + 4, '={0}36+{0}37'.format(chr(65 + 4 + col)),
+                                    workbook.add_format({'bottom': 1, 'num_format': NUM_FORMAT, 'right': 1}))
+        else:
+            worksheet.write_formula(6, col + 4, '=SUM({0}16:{0}24)'.format(chr(65 + 4 + col)), money)
+            worksheet.write_formula(7, col + 4, '=SUM({0}25:{0}29)'.format(chr(65 + 4 + col)), money)
+            worksheet.write_formula(8, col + 4, '={}30'.format(chr(65 + 4 + col)), money)
+            worksheet.write_formula(9, col + 4, '=SUM({0}31:{0}35)'.format(chr(65 + 4 + col)), money)
+            # todo: alttaki guncellenecek
+            worksheet.write_formula(10, col + 4, '={0}36+{0}37'.format(chr(65 + 4 + col)),
+                                    workbook.add_format({'bottom': 1, 'num_format': NUM_FORMAT}))
+
     worksheet.write_blank(12, 1, None, workbook.add_format({'left': 1, 'bottom': 1, 'top': 1}))
     worksheet.write_string(12, 2, 'Control',
                            workbook.add_format({'top': 1, 'bottom': 1, 'bold': True, 'num_format': NUM_FORMAT}))
-    worksheet.write_blank(12, 3, workbook.add_format({'top': 1, 'bottom': 1}))
-    worksheet.write_formula(12, 4, '=SUM(E7:E11)',
-                            workbook.add_format({'top': 1, 'bottom': 1, 'num_format': NUM_FORMAT}))
-    worksheet.write_formula(12, 5, '=SUM(F7:F11)',
-                            workbook.add_format({'top': 1, 'bottom': 1, 'num_format': NUM_FORMAT}))
-    worksheet.write_formula(12, 6, '=SUM(G7:G11)',
-                            workbook.add_format({'right': 1, 'bottom': 1, 'top': 1, 'num_format': NUM_FORMAT}))
+    worksheet.write_blank(12, 3, None, workbook.add_format({'top': 1, 'bottom': 1}))
 
-    worksheet.write_blank(10, 3, None, workbook.add_format({'bottom': 1}))
-    worksheet.write_blank(12, 3, None, workbook.add_format({'bottom': 1, 'top': 1}))
+    for col in range(db.len_periods):
+        if col == db.len_periods - 1:
+            worksheet.write_formula(12, col + 4, '=SUM({0}7:{0}11)'.format(chr(65 + 4 + col)),
+                                    workbook.add_format({'top': 1, 'right': 1, 'bottom': 1, 'num_format': NUM_FORMAT}))
+        else:
+            worksheet.write_formula(12, col + 4, '=SUM({0}7:{0}11)'.format(chr(65 + 4 + col)),
+                                    workbook.add_format({'top': 1, 'bottom': 1, 'num_format': NUM_FORMAT}))
 
     worksheet.write_blank(14, 1, None, workbook.add_format(
         {'bg_color': GRI_BG, 'top': 1, 'bottom': 1, 'left': 1, 'num_format': NUM_FORMAT}))
@@ -240,7 +260,7 @@ def create_alltb():
     col = 4
 
     for k in db.periodss:
-        if col is 6:
+        if col is db.len_periods + 3:
             worksheet.write_string(row, col, '%s' % k, workbook.add_format(
                 {'top': 1, 'bottom': 1, 'right': 1, 'bg_color': GRI_BG, 'bold': True}))
         else:
@@ -255,30 +275,38 @@ def create_alltb():
         if item.lead_code == 'Unmapped':
             continue
 
-        if not item.lead_code is "X":
+        if item.lead_code is not "X":
             # worksheet.write_blank(row,0,None,workbook.add_format({'left':1,'bg_color':EY_SARI}))
             worksheet.write_blank(row, 1, None, workbook.add_format({'left': 1, 'bg_color': EY_SARI}))
             worksheet.write_string(row, 2, item.name, workbook.add_format({'bg_color': EY_SARI}))
             worksheet.write_string(row, 3, item.lead_code,
                                    workbook.add_format({'bg_color': EY_SARI, 'bold': 1, 'font_color': 'red'}))
         else:
-            if not len(db.session.query(db.Hesaplar).filter_by(lead_code='Unmapped').all()) > 0:
+            if not unmp > 0:
                 # workbook.write_blank(row,0,None,workbook.add_format({'left':1,'bg_color':EY_SARI,'bottom':1}))
                 worksheet.write_blank(row, 1, None, workbook.add_format({'left': 1, 'bg_color': EY_SARI, 'bottom': 1}))
                 worksheet.write_string(row, 2, item.name, workbook.add_format({'bg_color': EY_SARI, 'bottom': 1}))
                 worksheet.write_string(row, 3, item.lead_code, workbook.add_format(
                     {'bg_color': EY_SARI, 'bold': 1, 'font_color': 'red', 'bottom': 1}))
+            else:
+                worksheet.write_blank(row, 1, None, workbook.add_format({'left': 1, 'bg_color': EY_SARI}))
+                worksheet.write_string(row, 2, item.name, workbook.add_format({'bg_color': EY_SARI}))
+                worksheet.write_string(row, 3, item.lead_code,
+                                       workbook.add_format({'bg_color': EY_SARI, 'bold': 1, 'font_color': 'red'}))
         row += 1
 
-    if len(db.session.query(db.Hesaplar).filter_by(lead_code='Unmapped').all()) > 0:
+    if unmp > 0:
         worksheet.write_blank(row, 1, None, workbook.add_format({'left': 1, 'bg_color': EY_SARI, 'bottom': 1}))
         worksheet.write_string(row, 2, 'Unmapped Accounts', workbook.add_format({'bg_color': EY_SARI, 'bottom': 1}))
-        worksheet.write_string(row, 3, 'UNMAPPED',
+        worksheet.write_string(row, 3, 'Unmapped',
                                workbook.add_format({'bg_color': EY_SARI, 'bold': 1, 'font_color': 'red', 'bottom': 1}))
+        lead_s = row + 1
+    else:
+        lead_s = row
+    # else:
+    #     lead_s = row
 
     row += 2
-    lead_s = row - 1
-
     col = 4
 
     worksheet.write_string(row, 1, 'Acc',
@@ -287,7 +315,6 @@ def create_alltb():
     worksheet.write_blank(row, 3, None, border)
 
     for v in db.periodss:
-
         if v is db.periodss[-1]:
             worksheet.write_string(row, col, '%s' % v, workbook.add_format(
                 {'bg_color': GRI_BG, 'bold': True, 'bottom': 1, 'top': 1, 'right': 1, 'align': 'right'}))
@@ -298,46 +325,56 @@ def create_alltb():
     row += 1
 
     hesap_b = row + 1
-
+    # todo:buralardan devam
     for item in db.session.query(db.Hesaplar).filter_by(len=3).order_by(db.Hesaplar.number).all():
         worksheet.write_string(row, 1, item.number, workbook.add_format({'bg_color': EY_SARI, 'left': 1}))
         worksheet.write_string(row, 2, item.name, workbook.add_format({'bg_color': EY_SARI}))
         worksheet.write_string(row, 3, item.lead_code,
                                workbook.add_format({'bg_color': EY_SARI, 'bold': True, 'font_color': 'red'}))
-        worksheet.write_formula(row, 4, "=SUMIF('TBs'!A:A,B%s,'TBs'!C:C)" % (row + 1),
-                                workbook.add_format({'bg_color': EY_SARI, 'num_format': NUM_FORMAT}))
-        worksheet.write_formula(row, 5, "=SUMIF('TBs'!A:A,B%s,'TBs'!D:D)" % (row + 1),
-                                workbook.add_format({'bg_color': EY_SARI, 'num_format': NUM_FORMAT}))
-        worksheet.write_formula(row, 6, "=SUMIF('TBs'!A:A,B%s,'TBs'!E:E)" % (row + 1),
-                                workbook.add_format({'bg_color': EY_SARI, 'right': 1, 'num_format': NUM_FORMAT}))
+
+        for period in range(db.len_periods):
+            if period is db.len_periods - 1:
+                worksheet.write_formula(row, period + 4,
+                                        "=SUMIF('TBs'!A:A,B{0},'TBs'!{1}:{1})".format(row + 1, chr(67 + period)),
+                                        workbook.add_format(
+                                            {'bg_color': EY_SARI, 'num_format': NUM_FORMAT, 'right': 1}))
+            else:
+                worksheet.write_formula(row, period + 4,
+                                        "=SUMIF('TBs'!A:A,B{0},'TBs'!{1}:{1})".format(row + 1, chr(67 + period)),
+                                        workbook.add_format({'bg_color': EY_SARI, 'num_format': NUM_FORMAT}))
+
         row += 1
 
-    for i in range(1, 7):
+    for i in range(1, db.len_periods + 4):
         worksheet.write_blank(row, i, None, workbook.add_format({'top': 1}))
 
     hesap_s = row
 
     for x in range(lead_b, lead_s):
-        if x < hesap_b - 4:
-            worksheet.write_formula(x, 4, '=SUMIF(D%s:D%s,D%s,E%s:E%s)' % (hesap_b, hesap_s, x + 1, hesap_b, hesap_s),
-                                    workbook.add_format({'num_format': NUM_FORMAT, 'bg_color': EY_SARI}))
-            worksheet.write_formula(x, 5, '=SUMIF(D%s:D%s,D%s,F%s:F%s)' % (hesap_b, hesap_s, x + 1, hesap_b, hesap_s),
-                                    workbook.add_format({'num_format': NUM_FORMAT, 'bg_color': EY_SARI}))
-            worksheet.write_formula(x, 6, '=SUMIF(D%s:D%s,D%s,G%s:G%s)' % (hesap_b, hesap_s, x + 1, hesap_b, hesap_s),
-                                    workbook.add_format({'num_format': NUM_FORMAT, 'right': 1, 'bg_color': EY_SARI}))
-        else:
-            worksheet.write_formula(x, 4, '=SUMIF(D%s:D%s,D%s,E%s:E%s)' % (hesap_b, hesap_s, x + 1, hesap_b, hesap_s),
-                                    workbook.add_format({'bottom': 1, 'num_format': NUM_FORMAT, 'bg_color': EY_SARI}))
-            worksheet.write_formula(x, 5, '=SUMIF(D%s:D%s,D%s,F%s:F%s)' % (hesap_b, hesap_s, x + 1, hesap_b, hesap_s),
-                                    workbook.add_format({'bottom': 1, 'num_format': NUM_FORMAT, 'bg_color': EY_SARI}))
-            worksheet.write_formula(x, 6, '=SUMIF(D%s:D%s,D%s,G%s:G%s)' % (hesap_b, hesap_s, x + 1, hesap_b, hesap_s),
-                                    workbook.add_format(
-                                        {'bottom': 1, 'num_format': NUM_FORMAT, 'right': 1, 'bg_color': EY_SARI}))
+        if x < hesap_b:
+            for col in range(db.len_periods):
+                if col is db.len_periods - 1 and x == lead_s - 1:
+                    fformat = workbook.add_format(
+                        {'num_format': NUM_FORMAT, 'bg_color': EY_SARI, 'bottom': 1, 'right': 1})
+                elif col is db.len_periods - 1:
+                    fformat = workbook.add_format(
+                        {'num_format': NUM_FORMAT, 'bg_color': EY_SARI, 'right': 1})
+                elif x == lead_s - 1:
+                    fformat = workbook.add_format(
+                        {'num_format': NUM_FORMAT, 'bg_color': EY_SARI, 'bottom': 1})
+                else:
+                    fformat = workbook.add_format(
+                        {'num_format': NUM_FORMAT, 'bg_color': EY_SARI})
+
+                worksheet.write_formula(x, col + 4,
+                                        '=SUMIF(D{1}:D{2},D{3},{0}{1}:{0}{2})'.format(chr(65 + 4 + col), hesap_b,
+                                                                                      hesap_s,
+                                                                                      x + 1), fformat)
 
 
 def create_lead(hesap):
     worksheet = workbook.add_worksheet('%s Lead' % hesap)
-    worksheet.set_zoom(80)
+    worksheet.set_zoom(W_ZOOM)
     worksheet.hide_gridlines(2)
 
     money = workbook.add_format({'num_format': NUM_FORMAT})
@@ -352,12 +389,11 @@ def create_lead(hesap):
         {'top': 1, 'bottom': 1, 'bold': True, 'num_format': NUM_FORMAT, 'bg_color': EY_SARI})
 
     row = 6
-    col = 1
+    col = 3
+    last_index = db.len_periods + 4
 
-    worksheet.write_string(row, col, 'Acc.', border)
-    worksheet.write_string(row, col + 1, 'Description', border)
-
-    col += 2
+    worksheet.write_string(row, 1, 'Acc.', border)
+    worksheet.write_string(row, 2, 'Description', border)
 
     for v in db.periodss:
         worksheet.write_string(row, col, '%s' % v, border)
@@ -365,7 +401,9 @@ def create_lead(hesap):
 
     worksheet.write_string(row, col, 'WP Ref', workbook.add_format(
         {'top': 1, 'bottom': 1, 'bold': True, 'bg_color': GRI_BG, 'color': 'red'}))
-    worksheet.write_string(row, col + 1, '% change', border)
+
+    if db.len_periods > 1:
+        worksheet.write_string(row, col + 1, '% change', border)
 
     for item in db.session.query(db.Hesaplar).filter_by(len=3, lead_code=hesap).order_by(db.Hesaplar.number).all():
         row += 1
@@ -374,23 +412,31 @@ def create_lead(hesap):
         for period in db.periodss:
             worksheet.write_number(row, db.periodss.index(period) + 3, getattr(item, period), money)
 
-        if hesap in PL_HESAPLAR and db.periodss[-1][3:5] != "12":
-            worksheet.write_formula(row, 7, '=IF(D%s=0,"INF",IF(F%s=0,"-100",(F%s-D%s)/F%s))' % (
-                row + 1, row + 1, row + 1, row + 1, row + 1), percn)
-        else:
-            worksheet.write_formula(row, 7, '=IF(E%s=0,"INF",IF(F%s=0,"-100",(F%s-E%s)/F%s))' % (
-                row + 1, row + 1, row + 1, row + 1, row + 1), percn)
+        if db.len_periods > 2:
+            if db.periodss[-1][3:5] != db.periodss[-2][3:5] and hesap in PL_HESAPLAR:
+                # if hesap in PL_HESAPLAR and db.periodss[-1][3:5] != "12":
+                worksheet.write_formula(row, last_index,
+                                        '=IF({1}{0}=0,"INF",IF({2}{0}=0,"-100",({2}{0}-{1}{0})/{2}{0}))'.
+                                        format(row + 1, chr(65 + last_index - 4), chr(65 + last_index - 2)), percn)
+            else:
+                worksheet.write_formula(row, last_index,
+                                        '=IF({1}{0}=0,"INF",IF({2}{0}=0,"-100",({2}{0}-{1}{0})/{2}{0}))'.
+                                        format(row + 1, chr(65 + last_index - 3), chr(65 + last_index - 2)), percn)
+        elif db.len_periods == 2:
+            worksheet.write_formula(row, last_index,
+                                    '=IF({1}{0}=0,"INF",IF({2}{0}=0,"-100",({2}{0}-{1}{0})/{2}{0}))'.
+                                    format(row + 1, chr(65 + last_index - 3), chr(65 + last_index - 2)), percn)
 
     row += 2
 
     worksheet.write_blank(row, 1, None, dipler)
     worksheet.write_string(row, 2, 'TOTAL', dipler)
 
-    worksheet.write_formula(row, 3, '=SUM(D8:D%s)' % row, dipler)
-    worksheet.write_formula(row, 4, '=SUM(E8:E%s)' % row, dipler)
-    worksheet.write_formula(row, 5, '=SUM(F8:F%s)' % row, dipler)
-    worksheet.write_blank(row, 6, None, dipler)
-    worksheet.write_blank(row, 7, None, dipler)
+    for i in range(3, db.len_periods + 3):
+        worksheet.write_formula(row, i, '=SUM({0}8:{0}{1})'.format(chr(65 + i), row), dipler)
+
+    worksheet.write_blank(row, db.len_periods + 3, None, dipler)
+    worksheet.write_blank(row, db.len_periods + 4, None, dipler)
 
     row += 2
 
@@ -398,21 +444,26 @@ def create_lead(hesap):
                            workbook.add_format({'color': 'red', 'bold': True, 'top': 1, 'bottom': 1, 'left': 1}))
     worksheet.write_string(row, 2, 'Check',
                            workbook.add_format({'color': 'red', 'bold': True, 'top': 1, 'bottom': 1}))
-    worksheet.write_formula(row, 3, "=VLOOKUP($B%s,'TB Mapping'!$D:$G,2,0)-D%s" % (row + 1, row - 1),
-                            workbook.add_format({'color': 'red', 'bold': True, 'top': 1, 'bottom': 1}))
-    worksheet.write_formula(row, 4, "=VLOOKUP($B%s,'TB Mapping'!$D:$G,3,0)-E%s" % (row + 1, row - 1),
-                            workbook.add_format({'color': 'red', 'bold': True, 'top': 1, 'bottom': 1}))
-    worksheet.write_formula(row, 5, "=VLOOKUP($B%s,'TB Mapping'!$D:$G,4,0)-F%s" % (row + 1, row - 1),
-                            workbook.add_format({'color': 'red', 'bold': True, 'top': 1, 'bottom': 1}))
-    worksheet.write_blank(row, 6, None, workbook.add_format({'color': 'red', 'bold': True, 'top': 1, 'bottom': 1}))
-    worksheet.write_blank(row, 7, None,
+
+    for i in range(3, db.len_periods + 3):
+        worksheet.write_formula(row, i,
+                                "=VLOOKUP($B{2},'TB Mapping'!$D:${0},{1},0)-{4}{3}".format(chr(65 + last_index - 1),
+                                                                                           i - 1,
+                                                                                           row + 1,
+                                                                                           row - 1, chr(65 + i)),
+                                workbook.add_format({'color': 'red', 'bold': True, 'top': 1, 'bottom': 1}))
+
+    worksheet.write_blank(row, db.len_periods + 3, None,
+                          workbook.add_format({'color': 'red', 'bold': True, 'top': 1, 'bottom': 1}))
+    worksheet.write_blank(row, db.len_periods + 4, None,
                           workbook.add_format({'color': 'red', 'bold': True, 'top': 1, 'bottom': 1, 'right': 1}))
-    create_headline(worksheet, hesap)
+
+    create_headline(worksheet, hesap, last_index + 1)
 
 
 def create_breakdown(hesap):
-    worksheet = workbook.add_worksheet(('%s1 - BD') % hesap)
-    worksheet.set_zoom(80)
+    worksheet = workbook.add_worksheet('%s1 - BD' % hesap)
+    worksheet.set_zoom(W_ZOOM)
     worksheet.hide_gridlines(2)
 
     money = workbook.add_format({'num_format': NUM_FORMAT})
@@ -434,6 +485,10 @@ def create_breakdown(hesap):
     col = 1
     start = 8
 
+    last_index = len(db.periodss) + 3
+
+    # todo: bi fonksiyon yaz, formatli bir sekilde seri olarak excele deger girsin. orjinalinde var ama formatlar ayni oluyor.
+
     for item in db.session.query(db.Hesaplar).filter_by(lead_code=hesap, len=3).order_by(db.Hesaplar.number).all():
         worksheet.write_string(row, col, 'Acc.', header)
         worksheet.write_string(row, col + 1, 'Descripton', header)
@@ -443,69 +498,105 @@ def create_breakdown(hesap):
             worksheet.write_string(row, col, '%s' % v, header)
             col += 1
 
-        worksheet.write_string(row, col, 'Change', header)
-        worksheet.write_string(row, col + 1, 'Flux', header)
+        if db.len_periods > 1:
+            worksheet.write_string(row, col, 'Change', header)
+            worksheet.write_string(row, col + 1, 'Flux', header)
 
         col = 1
 
         list_of_bds = db.session.query(db.Hesaplar).filter_by(ana_hesap=item.number, bd=True).order_by(
             desc(getattr(db.Hesaplar, db.periodss[-1]))).all() if (
             item.lead_code not in {"M", "N", "O", "P", "T", "UA"} or (
-                item.ana_hesap in {"302", "402", "322", "422", "437", "337", "610", "611", "612", "653", "642", "654",
-                                   "655",
-                                   "659", "680", "681", "682", "689", "656", "657", "660",
+                # todo opsiyon eklemek lazim, database'e eklenebilir reversable diye
+                item.ana_hesap in {"302", "402", "322", "422", "437", "337", "610", "611", "612", "653", "642",
+                                   "654", "655", "659", "680", "681", "682", "689", "656", "657", "660",
                                    "661"} and item.lead_code in {
-                    "UB",
-                    "VE",
-                    "M",
-                    "N",
-                    "UA"})) else db.session.query(
+                    "UB", "VE", "M", "N", "UA"})) else db.session.query(
             db.Hesaplar).filter_by(ana_hesap=item.number, bd=True).order_by(
             asc(getattr(db.Hesaplar, db.periodss[-1]))).all()
 
         for eben in list_of_bds:
             row += 1
-            worksheet.write_string(row, 1, ('%s') % eben.number)
-            worksheet.write_string(row, 2, ('%s') % eben.name)
+            worksheet.write_string(row, 1, '%s' % eben.number)
+            worksheet.write_string(row, 2, '%s' % eben.name)
+
             for period in db.periodss:
                 worksheet.write_number(row, db.periodss.index(period) + 3, getattr(eben, period), money)
 
-            if hesap in PL_HESAPLAR and db.periodss[-1][3:5] != "12":
-                worksheet.write_formula(row, 6, '=F%s-D%s' % (row + 1, row + 1), money)
-                worksheet.write_formula(row, 7, '=IF(D%s=0,"INF",IF(F%s=0,"-100",(F%s-D%s)/F%s))' % (
-                    row + 1, row + 1, row + 1, row + 1, row + 1), percn)
-            else:
-                worksheet.write_formula(row, 6, '=F%s-E%s' % (row + 1, row + 1), money)
-                worksheet.write_formula(row, 7, '=IF(E%s=0,"INF",IF(F%s=0,"-100",(F%s-E%s)/F%s))' % (
-                    row + 1, row + 1, row + 1, row + 1, row + 1), percn)
+                if db.len_periods > 2:
+                    if db.periodss[-1][3:5] != db.periodss[-2][3:5] and hesap in PL_HESAPLAR:
+                        # if hesap in PL_HESAPLAR and db.periodss[-1][3:5] != "12":
+                        worksheet.write_formula(row, last_index,
+                                                '={1}{0}-{2}{0}'.format(row + 1, chr(65 + last_index - 1),
+                                                                        chr(65 + last_index - 3)), money)
+                        worksheet.write_formula(row, last_index + 1,
+                                                '=IF({1}{0}=0,"INF",IF({2}{0}=0,"-100",({2}{0}-{1}{0})/{2}{0}))'.
+                                                format(row + 1, chr(65 + last_index - 3), chr(65 + last_index - 1)),
+                                                percn)
+                    else:
+                        worksheet.write_formula(row, last_index,
+                                                '={1}{0}-{2}{0}'.format(row + 1, chr(65 + last_index - 1),
+                                                                        chr(65 + last_index - 2)), money)
+                        worksheet.write_formula(row, last_index + 1,
+                                                '=IF({1}{0}=0,"INF",IF({2}{0}=0,"-100",({2}{0}-{1}{0})/{2}{0}))'.
+                                                format(row + 1, chr(65 + last_index - 2), chr(65 + last_index - 1)),
+                                                percn)
+                elif db.len_periods == 2:
+                    worksheet.write_formula(row, last_index,
+                                            '={1}{0}-{2}{0}'.format(row + 1, chr(65 + last_index - 2),
+                                                                    chr(65 + last_index - 3)), money)
+                    worksheet.write_formula(row, last_index + 1,
+                                            '=IF({1}{0}=0,"INF",IF({2}{0}=0,"-100",({2}{0}-{1}{0})/{2}{0}))'.
+                                            format(row + 1, chr(65 + last_index - 3), chr(65 + last_index - 2)),
+                                            percn)
+
+                    # if hesap in PL_HESAPLAR and db.periodss[-1][3:5] != "12":
+                    #     worksheet.write_formula(row, 6, '=F%s-D%s' % (row + 1, row + 1), money)
+                    #     worksheet.write_formula(row, 7, '=IF(D%s=0,"INF",IF(F%s=0,"-100",(F%s-D%s)/F%s))' % (
+                    #         row + 1, row + 1, row + 1, row + 1, row + 1), percn)
+                    # else:
+                    #     worksheet.write_formula(row, 6, '=F%s-E%s' % (row + 1, row + 1), money)
+                    #     worksheet.write_formula(row, 7, '=IF(E%s=0,"INF",IF(F%s=0,"-100",(F%s-E%s)/F%s))' % (
+                    #         row + 1, row + 1, row + 1, row + 1, row + 1), percn)
 
         row += 2
 
-        for i in range(1, 8):
+        for i in range(1, db.len_periods + 5):
             if i == 2:
                 worksheet.write_string(row, i, 'Total', dipler)
                 worksheet.write_string(row + 2, i, 'Check', dipler)
-            elif i == 3:
-                worksheet.write_formula(row, i, '=SUM(D%s:D%s)' % (start, row - 1), dipler)
-                worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
-                worksheet.write_formula(row + 2, i,
-                                        "=IFERROR(VLOOKUP(\"%s\",'%s Lead'!B:F,3,0),0)-D%s" % (
-                                            item.number, hesap, row + 1), dipler)
-            elif i == 4:
-                worksheet.write_formula(row, i, '=SUM(E%s:E%s)' % (start, row - 1), dipler)
-                worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
-                worksheet.write_formula(row + 2, i,
-                                        "=IFERROR(VLOOKUP(\"%s\",'%s Lead'!B:F,4,0),0)-E%s" % (
-                                            item.number, hesap, row + 1), dipler)
-            elif i == 5:
-                worksheet.write_formula(row, i, '=SUM(F%s:F%s)' % (start, row - 1), dipler)
-                worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
-                worksheet.write_formula(row + 2, i,
-                                        "=IFERROR(VLOOKUP(\"%s\",'%s Lead'!B:F,5,0),0)-F%s" % (
-                                            item.number, hesap, row + 1), dipler)
-            else:
+
+            elif i == 1 or i > db.len_periods + 2:
                 worksheet.write_blank(row, i, None, dipler)
                 worksheet.write_blank(row + 2, i, None, dipler)
+
+            else:
+                worksheet.write_formula(row, i, '=SUM({0}{1}:{0}{2})'.format(chr(65 + i), start, row - 1), dipler)
+                worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
+                worksheet.write_formula(row + 2, i,
+                                        "=IFERROR(VLOOKUP(\"{0}\",'{1} Lead'!B:{2},{5},0),0)-{4}{3}".format(
+                                            item.number, hesap, chr(65 + db.len_periods + 2), row + 1, chr(65 + i), i),
+                                        dipler)
+
+
+                # elif i == 3:
+                #     worksheet.write_formula(row, i, '=SUM(D%s:D%s)' % (start, row - 1), dipler)
+                #     worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
+                #     worksheet.write_formula(row + 2, i,
+                #                             "=IFERROR(VLOOKUP(\"%s\",'%s Lead'!B:F,3,0),0)-D%s" % (
+                #                                 item.number, hesap, row + 1), dipler)
+                # elif i == 4:
+                #     worksheet.write_formula(row, i, '=SUM(E%s:E%s)' % (start, row - 1), dipler)
+                #     worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
+                #     worksheet.write_formula(row + 2, i,
+                #                             "=IFERROR(VLOOKUP(\"%s\",'%s Lead'!B:F,4,0),0)-E%s" % (
+                #                                 item.number, hesap, row + 1), dipler)
+                # elif i == 5:
+                #     worksheet.write_formula(row, i, '=SUM(F%s:F%s)' % (start, row - 1), dipler)
+                #     worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
+                #     worksheet.write_formula(row + 2, i,
+                #                             "=IFERROR(VLOOKUP(\"%s\",'%s Lead'!B:F,5,0),0)-F%s" % (
+                #                                 item.number, hesap, row + 1), dipler)
 
         row += 6
         start = row + 2
@@ -517,7 +608,7 @@ def create_leads():
             continue
         if not db.session.query(db.Hesaplar).filter_by(lead_code=k.lead_code).first():
             continue
-
+        # todo: alltbs tepedeki kucuk tablo daha dynamic hale gelmeli
         create_lead(k.lead_code)
         create_breakdown(k.lead_code)
 
@@ -527,7 +618,7 @@ def create_leads():
 
 
 def create_a4():
-    # bitmedi daha
+    # bitmedi daha da neyin bitmedigini unuttum amk
     file_name = 'a4'
 
     if db.tanimlar['company']:
@@ -535,7 +626,26 @@ def create_a4():
 
     create_workbook(file_name)
     create_tbs()
-    create_comperative()
+    # create_comperative()
     create_alltb()
     create_leads()
     workbook.close()
+
+
+if __name__ == '__main__':
+    def define_variables():
+        from xlrd import open_workbook
+        excel_file = open_workbook('a3k.xlsx', encoding_override='utf-8')
+        sheet = excel_file.sheet_by_name('Instruction')
+
+        db.tanimlar['company'] = sheet.cell(6, 2).value
+
+        for sheet in excel_file.sheets()[2:]:
+            db.periodss.append(sheet.name)
+        db.Hesaplar = db.make_hesaplar()
+        db.create_db()
+        db.len_periods = len(db.periodss)
+
+
+    define_variables()
+    create_a4()

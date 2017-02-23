@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-
 __author__ = 'fatihka'
-
 from sqlalchemy import func
 from xlrd import open_workbook
 
@@ -41,6 +39,7 @@ def parse_excel_file(file):
     define_variables()
     db.Hesaplar = db.make_hesaplar()
     db.create_db()
+    db.len_periods = len(db.periodss)
     prepare_mapping()
 
     for i in range(2, excel_file.nsheets):
@@ -102,10 +101,6 @@ def summary_check():
 def create_summary_accs():
     flush('Creating main accounts...')
 
-    # sums = ', '.join(['SUM("{0}") AS "{0}"'.format(k) for k in db.periodss])
-
-    # raw_query = text("SELECT ana_hesap, lead_code, %s from hesaplar WHERE bd=1 GROUP BY ana_hesap" % sums)
-
     query = db.session.query(db.Hesaplar.ana_hesap,
                              db.Hesaplar.lead_code,
                              *[func.sum(getattr(db.Hesaplar, '{}'.format(period))).label('{}'.format(period)) for period
@@ -143,7 +138,10 @@ def fix_mainaccs():
     db.session.commit()
 
 
-def delete_zeros(exceptions=['900']):
+def delete_zeros(exceptions=None):
+    if exceptions is None:
+        exceptions = ['900']
+
     flush('Deleting accounts with zero balances in all periods...')
     query = db.session.query(db.Hesaplar).filter_by(**{k: 0 for k in db.periodss}).all()
     for item in query:

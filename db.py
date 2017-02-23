@@ -4,12 +4,14 @@ from sqlalchemy import Column, Integer, String, Unicode, Float, Boolean, create_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-db_name = 'qq.db'
+db_name = ':memory:'
 tanimlar = {'company': 'Fatih Ka.'}
 periodss = list()
+len_periods = 0
 
 Hesaplar = None
 session = None
+
 
 Base = declarative_base()
 
@@ -43,7 +45,7 @@ def make_hesaplar():
 
 def create_db():
     global session
-    engine = create_engine("sqlite:///%s" % db_name, echo=True)  # engine = create_engine("sqlite://", echo=False)
+    engine = create_engine("sqlite:///%s" % db_name, echo=False)  # engine = create_engine("sqlite://", echo=False)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
