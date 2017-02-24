@@ -4,14 +4,14 @@ from sqlalchemy import Column, Integer, String, Unicode, Float, Boolean, create_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+# db_name = 'ww.db'
 db_name = ':memory:'
-tanimlar = {'company': 'Fatih Ka.'}
+tanimlar = {'company': 'Fatih Ka.', 'optional': 'NO'}
 periodss = list()
 len_periods = 0
 
 Hesaplar = None
 session = None
-
 
 Base = declarative_base()
 
@@ -37,6 +37,7 @@ def make_hesaplar():
                           Column('lead_code', String, default='Unmapped', nullable=True),
                           Column('len', Integer, nullable=True),
                           Column('bd', Boolean, nullable=True, default=False),
+                          Column('optional', Unicode, nullable=True),
                           *[Column('%s' % i, Float, nullable=True, default=0) for i in periodss]
                           )
 

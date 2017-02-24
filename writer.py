@@ -479,18 +479,28 @@ def create_breakdown(hesap):
     percn = workbook.add_format({'bold': True, 'font_color': BLUE, 'align': 'right', 'num_format': PERC_FORMAT})
     dipler = workbook.add_format(
         {'top': 1, 'bottom': 1, 'bold': True, 'num_format': NUM_FORMAT, 'bg_color': EY_SARI})
-    create_headline(worksheet)
 
     row = 6
     col = 1
     start = 8
 
-    last_index = len(db.periodss) + 3
+    tip = db.tanimlar['optional'] if not db.tanimlar['optional'] == 'NO' else 'NO'
+
+    if tip is not "NO":
+        last_index = len(db.periodss) + 4
+    else:
+        last_index = len(db.periodss) + 3
 
     # todo: bi fonksiyon yaz, formatli bir sekilde seri olarak excele deger girsin. orjinalinde var ama formatlar ayni oluyor.
 
+    create_headline(worksheet, en=last_index + 2)
     for item in db.session.query(db.Hesaplar).filter_by(lead_code=hesap, len=3).order_by(db.Hesaplar.number).all():
         worksheet.write_string(row, col, 'Acc.', header)
+
+        if tip is not 'NO':
+            worksheet.write_string(row, col + 1, tip, header)
+            col += 1
+
         worksheet.write_string(row, col + 1, 'Descripton', header)
         col += 2
 
@@ -517,11 +527,25 @@ def create_breakdown(hesap):
 
         for eben in list_of_bds:
             row += 1
-            worksheet.write_string(row, 1, '%s' % eben.number)
-            worksheet.write_string(row, 2, '%s' % eben.name)
+            col = 1
+            worksheet.write_string(row, col, eben.number)
+
+            if tip is not 'NO':
+                col += 1
+                if eben.optional:
+                    try:
+                        worksheet.write_string(row, col, eben.optional)
+                    except:
+                        worksheet.write_blank(row, col, None)
+
+            col += 1
+            worksheet.write_string(row, col, eben.name)
 
             for period in db.periodss:
-                worksheet.write_number(row, db.periodss.index(period) + 3, getattr(eben, period), money)
+                if tip is not "NO":
+                    worksheet.write_number(row, db.periodss.index(period) + 4, getattr(eben, period), money)
+                else:
+                    worksheet.write_number(row, db.periodss.index(period) + 3, getattr(eben, period), money)
 
                 if db.len_periods > 2:
                     if db.periodss[-1][3:5] != db.periodss[-2][3:5] and hesap in PL_HESAPLAR:
@@ -561,45 +585,49 @@ def create_breakdown(hesap):
 
         row += 2
 
-        for i in range(1, db.len_periods + 5):
-            if i == 2:
-                worksheet.write_string(row, i, 'Total', dipler)
-                worksheet.write_string(row + 2, i, 'Check', dipler)
+        if tip is not 'NO':
+            ran = db.len_periods + 6
+        else:
+            ran = db.len_periods + 5
 
-            elif i == 1 or i > db.len_periods + 2:
-                worksheet.write_blank(row, i, None, dipler)
-                worksheet.write_blank(row + 2, i, None, dipler)
+        if tip is 'NO':
+            for i in range(1, ran):
+                if i == 2:
+                    worksheet.write_string(row, i, 'Total', dipler)
+                    worksheet.write_string(row + 2, i, 'Check', dipler)
 
-            else:
-                worksheet.write_formula(row, i, '=SUM({0}{1}:{0}{2})'.format(chr(65 + i), start, row - 1), dipler)
-                worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
-                worksheet.write_formula(row + 2, i,
-                                        "=IFERROR(VLOOKUP(\"{0}\",'{1} Lead'!B:{2},{5},0),0)-{4}{3}".format(
-                                            item.number, hesap, chr(65 + db.len_periods + 2), row + 1, chr(65 + i), i),
-                                        dipler)
+                elif i == 1 or i > db.len_periods + 2:
+                    worksheet.write_blank(row, i, None, dipler)
+                    worksheet.write_blank(row + 2, i, None, dipler)
+                else:
+                    worksheet.write_formula(row, i, '=SUM({0}{1}:{0}{2})'.format(chr(65 + i), start, row - 1), dipler)
+                    worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
+                    worksheet.write_formula(row + 2, i,
+                                            "=IFERROR(VLOOKUP(\"{0}\",'{1} Lead'!B:{2},{5},0),0)-{4}{3}".format(
+                                                item.number, hesap, chr(65 + db.len_periods + 2), row + 1, chr(65 + i),
+                                                i),
+                                            dipler)
+        else:
+            for i in range(1, ran):
+                if i == 3:
+                    worksheet.write_string(row, i, 'Total', dipler)
+                    worksheet.write_string(row + 2, i, 'Check', dipler)
 
-
-                # elif i == 3:
-                #     worksheet.write_formula(row, i, '=SUM(D%s:D%s)' % (start, row - 1), dipler)
-                #     worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
-                #     worksheet.write_formula(row + 2, i,
-                #                             "=IFERROR(VLOOKUP(\"%s\",'%s Lead'!B:F,3,0),0)-D%s" % (
-                #                                 item.number, hesap, row + 1), dipler)
-                # elif i == 4:
-                #     worksheet.write_formula(row, i, '=SUM(E%s:E%s)' % (start, row - 1), dipler)
-                #     worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
-                #     worksheet.write_formula(row + 2, i,
-                #                             "=IFERROR(VLOOKUP(\"%s\",'%s Lead'!B:F,4,0),0)-E%s" % (
-                #                                 item.number, hesap, row + 1), dipler)
-                # elif i == 5:
-                #     worksheet.write_formula(row, i, '=SUM(F%s:F%s)' % (start, row - 1), dipler)
-                #     worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
-                #     worksheet.write_formula(row + 2, i,
-                #                             "=IFERROR(VLOOKUP(\"%s\",'%s Lead'!B:F,5,0),0)-F%s" % (
-                #                                 item.number, hesap, row + 1), dipler)
+                elif i in (1, 2) or i > db.len_periods + 3:
+                    worksheet.write_blank(row, i, None, dipler)
+                    worksheet.write_blank(row + 2, i, None, dipler)
+                else:
+                    worksheet.write_formula(row, i, '=SUM({0}{1}:{0}{2})'.format(chr(65 + i), start, row - 1), dipler)
+                    worksheet.write_string(row + 1, i, '|--- %s Lead ---|' % hesap, color)
+                    worksheet.write_formula(row + 2, i,
+                                            "=IFERROR(VLOOKUP(\"{0}\",'{1} Lead'!B:{2},{5},0),0)-{4}{3}".format(
+                                                item.number, hesap, chr(65 + db.len_periods + 2), row + 1, chr(65 + i),
+                                                                                                  i - 1),
+                                            dipler)
 
         row += 6
         start = row + 2
+        col = 1
 
 
 def create_leads():
@@ -635,8 +663,13 @@ def create_a4():
 if __name__ == '__main__':
     def define_variables():
         from xlrd import open_workbook
-        excel_file = open_workbook('a3k.xlsx', encoding_override='utf-8')
+        excel_file = open_workbook('a3m.xlsx', encoding_override='utf-8')
         sheet = excel_file.sheet_by_name('Instruction')
+
+        try:
+            db.tanimlar['optional'] = sheet.cell_value(7, 2)
+        except:
+            pass
 
         db.tanimlar['company'] = sheet.cell(6, 2).value
 
